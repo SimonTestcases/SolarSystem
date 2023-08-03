@@ -30285,6 +30285,508 @@ class LineSegments extends Line {
 
 }
 
+class SphereGeometry extends BufferGeometry {
+
+	constructor( radius = 1, widthSegments = 32, heightSegments = 16, phiStart = 0, phiLength = Math.PI * 2, thetaStart = 0, thetaLength = Math.PI ) {
+
+		super();
+
+		this.type = 'SphereGeometry';
+
+		this.parameters = {
+			radius: radius,
+			widthSegments: widthSegments,
+			heightSegments: heightSegments,
+			phiStart: phiStart,
+			phiLength: phiLength,
+			thetaStart: thetaStart,
+			thetaLength: thetaLength
+		};
+
+		widthSegments = Math.max( 3, Math.floor( widthSegments ) );
+		heightSegments = Math.max( 2, Math.floor( heightSegments ) );
+
+		const thetaEnd = Math.min( thetaStart + thetaLength, Math.PI );
+
+		let index = 0;
+		const grid = [];
+
+		const vertex = new Vector3();
+		const normal = new Vector3();
+
+		// buffers
+
+		const indices = [];
+		const vertices = [];
+		const normals = [];
+		const uvs = [];
+
+		// generate vertices, normals and uvs
+
+		for ( let iy = 0; iy <= heightSegments; iy ++ ) {
+
+			const verticesRow = [];
+
+			const v = iy / heightSegments;
+
+			// special case for the poles
+
+			let uOffset = 0;
+
+			if ( iy === 0 && thetaStart === 0 ) {
+
+				uOffset = 0.5 / widthSegments;
+
+			} else if ( iy === heightSegments && thetaEnd === Math.PI ) {
+
+				uOffset = - 0.5 / widthSegments;
+
+			}
+
+			for ( let ix = 0; ix <= widthSegments; ix ++ ) {
+
+				const u = ix / widthSegments;
+
+				// vertex
+
+				vertex.x = - radius * Math.cos( phiStart + u * phiLength ) * Math.sin( thetaStart + v * thetaLength );
+				vertex.y = radius * Math.cos( thetaStart + v * thetaLength );
+				vertex.z = radius * Math.sin( phiStart + u * phiLength ) * Math.sin( thetaStart + v * thetaLength );
+
+				vertices.push( vertex.x, vertex.y, vertex.z );
+
+				// normal
+
+				normal.copy( vertex ).normalize();
+				normals.push( normal.x, normal.y, normal.z );
+
+				// uv
+
+				uvs.push( u + uOffset, 1 - v );
+
+				verticesRow.push( index ++ );
+
+			}
+
+			grid.push( verticesRow );
+
+		}
+
+		// indices
+
+		for ( let iy = 0; iy < heightSegments; iy ++ ) {
+
+			for ( let ix = 0; ix < widthSegments; ix ++ ) {
+
+				const a = grid[ iy ][ ix + 1 ];
+				const b = grid[ iy ][ ix ];
+				const c = grid[ iy + 1 ][ ix ];
+				const d = grid[ iy + 1 ][ ix + 1 ];
+
+				if ( iy !== 0 || thetaStart > 0 ) indices.push( a, b, d );
+				if ( iy !== heightSegments - 1 || thetaEnd < Math.PI ) indices.push( b, c, d );
+
+			}
+
+		}
+
+		// build geometry
+
+		this.setIndex( indices );
+		this.setAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
+		this.setAttribute( 'normal', new Float32BufferAttribute( normals, 3 ) );
+		this.setAttribute( 'uv', new Float32BufferAttribute( uvs, 2 ) );
+
+	}
+
+	copy( source ) {
+
+		super.copy( source );
+
+		this.parameters = Object.assign( {}, source.parameters );
+
+		return this;
+
+	}
+
+	static fromJSON( data ) {
+
+		return new SphereGeometry( data.radius, data.widthSegments, data.heightSegments, data.phiStart, data.phiLength, data.thetaStart, data.thetaLength );
+
+	}
+
+}
+
+const Cache = {
+
+	enabled: false,
+
+	files: {},
+
+	add: function ( key, file ) {
+
+		if ( this.enabled === false ) return;
+
+		// console.log( 'THREE.Cache', 'Adding key:', key );
+
+		this.files[ key ] = file;
+
+	},
+
+	get: function ( key ) {
+
+		if ( this.enabled === false ) return;
+
+		// console.log( 'THREE.Cache', 'Checking key:', key );
+
+		return this.files[ key ];
+
+	},
+
+	remove: function ( key ) {
+
+		delete this.files[ key ];
+
+	},
+
+	clear: function () {
+
+		this.files = {};
+
+	}
+
+};
+
+class LoadingManager {
+
+	constructor( onLoad, onProgress, onError ) {
+
+		const scope = this;
+
+		let isLoading = false;
+		let itemsLoaded = 0;
+		let itemsTotal = 0;
+		let urlModifier = undefined;
+		const handlers = [];
+
+		// Refer to #5689 for the reason why we don't set .onStart
+		// in the constructor
+
+		this.onStart = undefined;
+		this.onLoad = onLoad;
+		this.onProgress = onProgress;
+		this.onError = onError;
+
+		this.itemStart = function ( url ) {
+
+			itemsTotal ++;
+
+			if ( isLoading === false ) {
+
+				if ( scope.onStart !== undefined ) {
+
+					scope.onStart( url, itemsLoaded, itemsTotal );
+
+				}
+
+			}
+
+			isLoading = true;
+
+		};
+
+		this.itemEnd = function ( url ) {
+
+			itemsLoaded ++;
+
+			if ( scope.onProgress !== undefined ) {
+
+				scope.onProgress( url, itemsLoaded, itemsTotal );
+
+			}
+
+			if ( itemsLoaded === itemsTotal ) {
+
+				isLoading = false;
+
+				if ( scope.onLoad !== undefined ) {
+
+					scope.onLoad();
+
+				}
+
+			}
+
+		};
+
+		this.itemError = function ( url ) {
+
+			if ( scope.onError !== undefined ) {
+
+				scope.onError( url );
+
+			}
+
+		};
+
+		this.resolveURL = function ( url ) {
+
+			if ( urlModifier ) {
+
+				return urlModifier( url );
+
+			}
+
+			return url;
+
+		};
+
+		this.setURLModifier = function ( transform ) {
+
+			urlModifier = transform;
+
+			return this;
+
+		};
+
+		this.addHandler = function ( regex, loader ) {
+
+			handlers.push( regex, loader );
+
+			return this;
+
+		};
+
+		this.removeHandler = function ( regex ) {
+
+			const index = handlers.indexOf( regex );
+
+			if ( index !== - 1 ) {
+
+				handlers.splice( index, 2 );
+
+			}
+
+			return this;
+
+		};
+
+		this.getHandler = function ( file ) {
+
+			for ( let i = 0, l = handlers.length; i < l; i += 2 ) {
+
+				const regex = handlers[ i ];
+				const loader = handlers[ i + 1 ];
+
+				if ( regex.global ) regex.lastIndex = 0; // see #17920
+
+				if ( regex.test( file ) ) {
+
+					return loader;
+
+				}
+
+			}
+
+			return null;
+
+		};
+
+	}
+
+}
+
+const DefaultLoadingManager = /*@__PURE__*/ new LoadingManager();
+
+class Loader {
+
+	constructor( manager ) {
+
+		this.manager = ( manager !== undefined ) ? manager : DefaultLoadingManager;
+
+		this.crossOrigin = 'anonymous';
+		this.withCredentials = false;
+		this.path = '';
+		this.resourcePath = '';
+		this.requestHeader = {};
+
+	}
+
+	load( /* url, onLoad, onProgress, onError */ ) {}
+
+	loadAsync( url, onProgress ) {
+
+		const scope = this;
+
+		return new Promise( function ( resolve, reject ) {
+
+			scope.load( url, resolve, onProgress, reject );
+
+		} );
+
+	}
+
+	parse( /* data */ ) {}
+
+	setCrossOrigin( crossOrigin ) {
+
+		this.crossOrigin = crossOrigin;
+		return this;
+
+	}
+
+	setWithCredentials( value ) {
+
+		this.withCredentials = value;
+		return this;
+
+	}
+
+	setPath( path ) {
+
+		this.path = path;
+		return this;
+
+	}
+
+	setResourcePath( resourcePath ) {
+
+		this.resourcePath = resourcePath;
+		return this;
+
+	}
+
+	setRequestHeader( requestHeader ) {
+
+		this.requestHeader = requestHeader;
+		return this;
+
+	}
+
+}
+
+Loader.DEFAULT_MATERIAL_NAME = '__DEFAULT';
+
+class ImageLoader extends Loader {
+
+	constructor( manager ) {
+
+		super( manager );
+
+	}
+
+	load( url, onLoad, onProgress, onError ) {
+
+		if ( this.path !== undefined ) url = this.path + url;
+
+		url = this.manager.resolveURL( url );
+
+		const scope = this;
+
+		const cached = Cache.get( url );
+
+		if ( cached !== undefined ) {
+
+			scope.manager.itemStart( url );
+
+			setTimeout( function () {
+
+				if ( onLoad ) onLoad( cached );
+
+				scope.manager.itemEnd( url );
+
+			}, 0 );
+
+			return cached;
+
+		}
+
+		const image = createElementNS( 'img' );
+
+		function onImageLoad() {
+
+			removeEventListeners();
+
+			Cache.add( url, this );
+
+			if ( onLoad ) onLoad( this );
+
+			scope.manager.itemEnd( url );
+
+		}
+
+		function onImageError( event ) {
+
+			removeEventListeners();
+
+			if ( onError ) onError( event );
+
+			scope.manager.itemError( url );
+			scope.manager.itemEnd( url );
+
+		}
+
+		function removeEventListeners() {
+
+			image.removeEventListener( 'load', onImageLoad, false );
+			image.removeEventListener( 'error', onImageError, false );
+
+		}
+
+		image.addEventListener( 'load', onImageLoad, false );
+		image.addEventListener( 'error', onImageError, false );
+
+		if ( url.slice( 0, 5 ) !== 'data:' ) {
+
+			if ( this.crossOrigin !== undefined ) image.crossOrigin = this.crossOrigin;
+
+		}
+
+		scope.manager.itemStart( url );
+
+		image.src = url;
+
+		return image;
+
+	}
+
+}
+
+class TextureLoader extends Loader {
+
+	constructor( manager ) {
+
+		super( manager );
+
+	}
+
+	load( url, onLoad, onProgress, onError ) {
+
+		const texture = new Texture();
+
+		const loader = new ImageLoader( this.manager );
+		loader.setCrossOrigin( this.crossOrigin );
+		loader.setPath( this.path );
+
+		loader.load( url, function ( image ) {
+
+			texture.image = image;
+			texture.needsUpdate = true;
+
+			if ( onLoad !== undefined ) {
+
+				onLoad( texture );
+
+			}
+
+		}, onProgress, onError );
+
+		return texture;
+
+	}
+
+}
+
 class Light extends Object3D {
 
 	constructor( color, intensity = 1 ) {
@@ -33440,15 +33942,133 @@ class SceneUtils {
   };
 }
 
+/**Scale factor used to avoid massive geometry objects */
+const scaleFactor = 0.000001;
+
+/**Class used to represent a planet of the solar system */
+class Planet {
+  /***
+   * Initialize the class
+   * @param {Number} radius - the radius in km. The size will be scaled
+   * @param {String} name - the name of the planet
+   * @param {string} texture - the relative path to the texture that will be used for the material
+   */
+  constructor(radius, name, texture) {
+    this.radius = radius * scaleFactor;
+
+    this.name = name;
+
+    this.texture = texture;
+
+    this.distanceToParent = 0;
+  }
+
+  /**Set the distance to the parent object along the x axis */
+  setDistanceToParent = (distance) => {
+    this.distanceToParent = distance;
+  };
+
+  /** Return the planet mesh */
+  returnPlanetMesh = () => {
+    const geometry = this._returnSphere();
+
+    const material = this._returnMaterial();
+
+    const mesh = new Mesh(geometry, material);
+
+    mesh.position.x = this.distanceToParent;
+
+    return mesh;
+  };
+
+  /**Private method to return sphere geometry*/
+  _returnSphere = () => {
+    return new SphereGeometry(this.radius);
+  };
+
+  /**Private method to return material */
+  _returnMaterial = () => {
+    const loader = new TextureLoader();
+
+    return new MeshBasicMaterial({
+      map: loader.load(this.texture),
+    });
+  };
+}
+
 const scene = new Scene();
 
 const canvas = document.getElementById("threeCanvas");
 
 const sceneUtils = new SceneUtils(scene, canvas);
+
 sceneUtils.addAxes();
+
 sceneUtils.addGrid();
+
 sceneUtils.addCameraToScene();
+
 const renderer = sceneUtils.returnRenderer();
+
+//---------
+
+const sun = new Planet(696340, "Sun", "./images/SunTexture.jpg");
+const sunMesh = sun.returnPlanetMesh();
+scene.add(sunMesh);
+
+const mercury = new Planet(
+  2439.7 * 10,
+  "Mercury",
+  "./images/MercuryTexture.jpg"
+);
+mercury.setDistanceToParent(1);
+const mercuryMesh = mercury.returnPlanetMesh();
+sunMesh.add(mercuryMesh);
+
+const venus = new Planet(6051.8 * 10, "Venus", "./images/VenusTexture.jpg");
+venus.setDistanceToParent(2);
+const venusMesh = venus.returnPlanetMesh();
+sunMesh.add(venusMesh);
+
+const earth = new Planet(6371 * 10, "Earth", "./images/EarthTexture.jpg");
+earth.setDistanceToParent(3);
+const earthMesh = earth.returnPlanetMesh();
+sunMesh.add(earthMesh);
+
+const mars = new Planet(3389.5 * 10, "Mars", "./images/MarsTexture.jpg");
+mars.setDistanceToParent(4);
+const marsMesh = mars.returnPlanetMesh();
+sunMesh.add(marsMesh);
+
+const jupiter = new Planet(
+  69911 * 10,
+  "Jupiter",
+  "./images/JupiterTexture.jpg"
+);
+jupiter.setDistanceToParent(5);
+const jupiterMesh = jupiter.returnPlanetMesh();
+sunMesh.add(jupiterMesh);
+
+const saturn = new Planet(58232 * 10, "Saturn", "./images/SaturnTexture.jpg");
+saturn.setDistanceToParent(6);
+const saturnMesh = saturn.returnPlanetMesh();
+sunMesh.add(saturnMesh);
+
+const uranus = new Planet(25362 * 10, "Uranus", "./images/UranusTexture.jpg");
+uranus.setDistanceToParent(7);
+const uranusMesh = uranus.returnPlanetMesh();
+sunMesh.add(uranusMesh);
+
+const neptune = new Planet(
+  24622 * 10,
+  "Neptune",
+  "./images/NeptuneTexture.jpg"
+);
+neptune.setDistanceToParent(8);
+const neptuneMesh = neptune.returnPlanetMesh();
+sunMesh.add(neptuneMesh);
+
+//---------
 
 /***
  * Make window respond to resizing by also updating the projection matrix
@@ -33482,17 +34102,23 @@ const subsetOfTHREE = {
 };
 
 CameraControls.install({ THREE: subsetOfTHREE });
+
 const clock = new Clock();
+
 const cameraControls = new CameraControls(sceneUtils.camera, canvas);
-cameraControls.setLookAt(5, 10, 8, 1, 2, 1);
+
+cameraControls.setLookAt(5, 0.5, 0.5, 0, 0, 0);
 
 /***
  * Compute the animation
  */
 const animate = () => {
   const delta = clock.getDelta();
+
   cameraControls.update(delta);
+
   renderer.render(scene, sceneUtils.camera);
+
   requestAnimationFrame(animate);
 };
 
