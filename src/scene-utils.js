@@ -47,7 +47,7 @@ export class SceneUtils {
    * Add a grid to the scene
    */
   addGrid = () => {
-    const grid = new GridHelper();
+    const grid = new GridHelper(20, 20);
 
     grid.material.depthTest = false;
 
@@ -89,7 +89,7 @@ export class SceneUtils {
 
     renderer.setSize(this.canvas.clientWidth, this.canvas.clientHeight, false);
 
-    renderer.setClearColor(0xf5f5f5, 1);
+    // renderer.setClearColor(0xf5f5f5, 1);
 
     return renderer;
   };

@@ -1,10 +1,5 @@
 import {
   Scene,
-  BoxGeometry,
-  MeshLambertMaterial,
-  Mesh,
-  PerspectiveCamera,
-  WebGLRenderer,
   MOUSE,
   Vector2,
   Vector3,
@@ -17,13 +12,6 @@ import {
   Raycaster,
   MathUtils,
   Clock,
-  HemisphereLight,
-  AxesHelper,
-  GridHelper,
-  MeshBasicMaterial,
-  Camera,
-  SphereGeometry,
-  TextureLoader,
 } from "three";
 
 import CameraControls from "camera-controls";
@@ -38,78 +26,53 @@ const canvas = document.getElementById("threeCanvas");
 
 const sceneUtils = new SceneUtils(scene, canvas);
 
-sceneUtils.addAxes();
-
-sceneUtils.addGrid();
-
 sceneUtils.addCameraToScene();
 
 const renderer = sceneUtils.returnRenderer();
 
-//---------
+const planets = [
+  new Planet(10, "Sun", "./images/SunTexture.jpg"),
+  new Planet(0.5, "Mercury", "./images/MercuryTexture.jpg"),
+  new Planet(1.2, "Venus", "./images/VenusTexture.jpg"),
+  new Planet(1.4, "Earth", "./images/EarthTexture.jpg"),
+  new Planet(1, "Mars", "./images/MarsTexture.jpg"),
+  new Planet(5, "Jupiter", "./images/JupiterTexture.jpg"),
+  new Planet(4, "Saturn", "./images/SaturnTexture.jpg"),
+  new Planet(3.1, "Uranus", "./images/UranusTexture.jpg"),
+  new Planet(3, "Neptune", "./images/NeptuneTexture.jpg"),
+];
 
-const sun = new Planet(696340, "Sun", "./images/SunTexture.jpg");
-const sunMesh = sun.returnPlanetMesh();
-scene.add(sunMesh);
+/**function to add planets to the canvas */
+function addPlanetsToCanvas() {
+  let prevRadius = null;
+  let distanceToSun = 0;
+  const distanceBetweenPlanets = 1;
 
-const mercury = new Planet(
-  2439.7 * 10,
-  "Mercury",
-  "./images/MercuryTexture.jpg"
-);
-mercury.setDistanceToParent(1);
-const mercuryMesh = mercury.returnPlanetMesh();
-sunMesh.add(mercuryMesh);
+  planets.forEach((planet) => {
+    const planetMesh = planet.returnPlanetMesh();
 
-const venus = new Planet(6051.8 * 10, "Venus", "./images/VenusTexture.jpg");
-venus.setDistanceToParent(2);
-const venusMesh = venus.returnPlanetMesh();
-sunMesh.add(venusMesh);
+    if (prevRadius === null) {
+      scene.add(planetMesh);
+    } else {
+      distanceToSun += prevRadius + planet.radius + distanceBetweenPlanets;
 
-const earth = new Planet(6371 * 10, "Earth", "./images/EarthTexture.jpg");
-earth.setDistanceToParent(3);
-const earthMesh = earth.returnPlanetMesh();
-sunMesh.add(earthMesh);
+      planetMesh.position.x = distanceToSun;
 
-const mars = new Planet(3389.5 * 10, "Mars", "./images/MarsTexture.jpg");
-mars.setDistanceToParent(4);
-const marsMesh = mars.returnPlanetMesh();
-sunMesh.add(marsMesh);
+      scene.add(planetMesh);
+    }
 
-const jupiter = new Planet(
-  69911 * 10,
-  "Jupiter",
-  "./images/JupiterTexture.jpg"
-);
-jupiter.setDistanceToParent(5);
-const jupiterMesh = jupiter.returnPlanetMesh();
-sunMesh.add(jupiterMesh);
+    prevRadius = planet.radius;
+  });
+}
 
-const saturn = new Planet(58232 * 10, "Saturn", "./images/SaturnTexture.jpg");
-saturn.setDistanceToParent(6);
-const saturnMesh = saturn.returnPlanetMesh();
-sunMesh.add(saturnMesh);
-
-const uranus = new Planet(25362 * 10, "Uranus", "./images/UranusTexture.jpg");
-uranus.setDistanceToParent(7);
-const uranusMesh = uranus.returnPlanetMesh();
-sunMesh.add(uranusMesh);
-
-const neptune = new Planet(
-  24622 * 10,
-  "Neptune",
-  "./images/NeptuneTexture.jpg"
-);
-neptune.setDistanceToParent(8);
-const neptuneMesh = neptune.returnPlanetMesh();
-sunMesh.add(neptuneMesh);
-
-//---------
+addPlanetsToCanvas();
 
 /***
  * Make window respond to resizing by also updating the projection matrix
  */
 window.addEventListener("resize", () => {
+  const sizeRatio = canvas.clientWidth / canvas.clientHeight;
+
   sceneUtils.camera.aspect = sizeRatio;
 
   sceneUtils.camera.updateProjectionMatrix();
@@ -143,8 +106,9 @@ const clock = new Clock();
 
 const cameraControls = new CameraControls(sceneUtils.camera, canvas);
 
-cameraControls.setLookAt(5, 0.5, 0.5, 0, 0, 0);
+cameraControls.setLookAt(20, 0.5, 0.5, 0, 0, 0);
 
+const axis = new Vector3(0, 0.1, 0.1);
 /***
  * Compute the animation
  */
