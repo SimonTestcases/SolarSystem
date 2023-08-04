@@ -7,16 +7,18 @@ export class Planet {
    * @param {Number} radius - the radius in km. The size will be scaled
    * @param {String} name - the name of the planet
    * @param {string} texture - the relative path to the texture that will be used for the material
-   * @param {Number} baseOffset - base offset used to compute distance to parent
+   * @param {Number} rotationSpeed - rotation speed of planet
    */
-  constructor(radius, name, texture, baseOffset = 0) {
+  constructor(radius, name, texture, rotationSpeed = null) {
     this.radius = radius;
 
     this.name = name;
 
     this.texture = texture;
 
-    this.distanceToParent = baseOffset;
+    this.distanceToParent = 0;
+
+    this.rotationSpeed = rotationSpeed;
   }
 
   /**Set the distance to the parent object along the x axis */

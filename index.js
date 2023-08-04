@@ -32,14 +32,14 @@ const renderer = sceneUtils.returnRenderer();
 
 const planets = [
   new Planet(10, "Sun", "./images/SunTexture.jpg"),
-  new Planet(0.5, "Mercury", "./images/MercuryTexture.jpg"),
-  new Planet(1.2, "Venus", "./images/VenusTexture.jpg"),
-  new Planet(1.4, "Earth", "./images/EarthTexture.jpg"),
-  new Planet(1, "Mars", "./images/MarsTexture.jpg"),
-  new Planet(5, "Jupiter", "./images/JupiterTexture.jpg"),
-  new Planet(4, "Saturn", "./images/SaturnTexture.jpg"),
-  new Planet(3.1, "Uranus", "./images/UranusTexture.jpg"),
-  new Planet(3, "Neptune", "./images/NeptuneTexture.jpg"),
+  new Planet(0.5, "Mercury", "./images/MercuryTexture.jpg", 0.00241),
+  new Planet(1.2, "Venus", "./images/VenusTexture.jpg", 0.00615),
+  new Planet(1.4, "Earth", "./images/EarthTexture.jpg", 0.01),
+  new Planet(1, "Mars", "./images/MarsTexture.jpg", 0.01026),
+  new Planet(5, "Jupiter", "./images/JupiterTexture.jpg", 0.01),
+  new Planet(4, "Saturn", "./images/SaturnTexture.jpg", 0.00437),
+  new Planet(3.1, "Uranus", "./images/UranusTexture.jpg", 0.00173),
+  new Planet(3, "Neptune", "./images/NeptuneTexture.jpg", 0.00163),
 ];
 
 /**function to add planets to the canvas */
@@ -47,6 +47,7 @@ function addPlanetsToCanvas() {
   let prevRadius = null;
   let distanceToSun = 0;
   const distanceBetweenPlanets = 1;
+  const animationData = [];
 
   planets.forEach((planet) => {
     const planetMesh = planet.returnPlanetMesh();
@@ -61,11 +62,20 @@ function addPlanetsToCanvas() {
       scene.add(planetMesh);
     }
 
+    animationData.push({
+      mesh: planetMesh,
+      rotationAngle: 0,
+      rotationSpeed: planet.rotationSpeed,
+      baseDistance: planetMesh.position.x,
+    });
+
     prevRadius = planet.radius;
   });
+
+  return animationData;
 }
 
-addPlanetsToCanvas();
+const animationData = addPlanetsToCanvas();
 
 /***
  * Make window respond to resizing by also updating the projection matrix
@@ -108,11 +118,24 @@ const cameraControls = new CameraControls(sceneUtils.camera, canvas);
 
 cameraControls.setLookAt(20, 0.5, 0.5, 0, 0, 0);
 
-const axis = new Vector3(0, 0.1, 0.1);
 /***
  * Compute the animation
  */
 const animate = () => {
+  animationData.forEach((animation) => {
+    if (animation.rotationSpeed) {
+      animation.rotationAngle += animation.rotationSpeed;
+
+      animation.mesh.position.x =
+        animation.baseDistance * Math.cos(animation.rotationAngle);
+
+      animation.mesh.position.z =
+        animation.baseDistance * Math.sin(animation.rotationAngle);
+
+      // animation.mesh.position.set(x, 0, z);
+    }
+  });
+
   const delta = clock.getDelta();
 
   cameraControls.update(delta);
